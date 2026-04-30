@@ -34,11 +34,11 @@ BASE_FILTER = "-is:retweet (lang:en OR lang:de)"
 
 
 def _build_client() -> tweepy.Client | None:
-    if not config.TWITTER_BEARER_TOKEN:
-        logger.warning("TWITTER_BEARER_TOKEN not set — skipping Twitter crawl")
+    if not config.RAPIDAPI_KEY:
+        logger.warning("RAPIDAPI_KEY not set — skipping Twitter crawl")
         return None
     return tweepy.Client(
-        bearer_token=config.TWITTER_BEARER_TOKEN,
+        bearer_token=config.RAPIDAPI_KEY,
         wait_on_rate_limit=False,
     )
 
@@ -111,8 +111,8 @@ def _search_with_backoff(client: tweepy.Client, query: str,
 
 def run() -> int:
     """Entry point called by APScheduler."""
-    if not config.TWITTER_BEARER_TOKEN:
-        logger.warning("Twitter crawler skipped: no bearer token configured")
+    if not config.RAPIDAPI_KEY:
+        logger.warning("Twitter crawler skipped: no RAPIDAPI_KEY configured")
         with get_db() as conn:
             log_job(conn, "twitter_crawler", 0)
         return 0

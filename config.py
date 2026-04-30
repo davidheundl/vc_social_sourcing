@@ -5,7 +5,7 @@ load_dotenv()
 
 
 class Config:
-    TWITTER_BEARER_TOKEN: str = os.getenv("TWITTER_BEARER_TOKEN", "")
+    RAPIDAPI_KEY: str = os.getenv("RAPIDAPI_KEY", "")
     PROXYCURL_API_KEY: str = os.getenv("PROXYCURL_API_KEY", "")
     SERPAPI_KEY: str = os.getenv("SERPAPI_KEY", "")
     PRODUCTHUNT_API_TOKEN: str = os.getenv("PRODUCTHUNT_API_TOKEN", "")
