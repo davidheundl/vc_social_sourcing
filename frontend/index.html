@@ -96,7 +96,7 @@ input[type=search]:focus, select:focus { outline: none; border-color: #58a6ff; }
   </div>
   <div class="stats">
     <div class="stat"><div class="stat-value" id="stat-profiles">—</div><div class="stat-label">Profiles</div></div>
-    <div class="stat"><div class="stat-value" id="stat-signals">—</div><div class="stat-label">VC Signals</div></div>
+    <div class="stat"><div class="stat-value" id="stat-followers">—</div><div class="stat-label">VC Followers</div></div>
     <div class="stat"><div class="stat-value" id="stat-multivc">—</div><div class="stat-label">Multi-VC</div></div>
   </div>
 </header>
@@ -104,7 +104,8 @@ input[type=search]:focus, select:focus { outline: none; border-color: #58a6ff; }
 <div class="tabs">
   <div class="tab active" data-tab="leads" onclick="switchTab('leads')">Top Leads <span class="badge" id="badge-leads">0</span></div>
   <div class="tab" data-tab="profiles" onclick="switchTab('profiles')">Alle Profile <span class="badge" id="badge-profiles">0</span></div>
-  <div class="tab" data-tab="signals" onclick="switchTab('signals')">🔔 VC Follows <span class="badge" id="badge-signals">0</span></div>
+  <div class="tab" data-tab="followers" onclick="switchTab('followers')">👥 VC Follower <span class="badge" id="badge-followers">0</span></div>
+  <div class="tab" data-tab="signals" onclick="switchTab('signals')">🔔 Neue Follows <span class="badge" id="badge-signals">0</span></div>
   <div class="tab" data-tab="multivc" onclick="switchTab('multivc')">🔥 Multi-VC <span class="badge" id="badge-multivc">0</span></div>
 </div>
 
@@ -147,10 +148,11 @@ let debounceTimer;
 // ── Boot ──────────────────────────────────────────────────────────────────
 
 async function boot() {
-  await Promise.all([loadHealth(), loadLeads(), loadProfiles(), loadSignals(), loadMultiVC()]);
+  await Promise.all([loadHealth(), loadLeads(), loadProfiles(), loadFollowers(), loadSignals(), loadMultiVC()]);
 }
 
 async function loadHealth() {
+
   try {
     const d = await get('/health');
     document.getElementById('stat-profiles').textContent = d.db_counts?.profiles ?? '—';
@@ -175,6 +177,16 @@ async function loadProfiles() {
     populateCountryFilter(d);
     if (currentTab === 'profiles') renderProfiles();
   } catch(e) { console.error('profiles', e); }
+}
+
+async function loadFollowers() {
+  try {
+    const d = await get('/vc-signals/followers?limit=500');
+    allData.followers = d;
+    document.getElementById('badge-followers').textContent = d.length;
+    document.getElementById('stat-followers').textContent = d.length;
+    if (currentTab === 'followers') renderFollowers();
+  } catch(e) { console.error('followers', e); }
 }
 
 async function loadSignals() {
@@ -206,7 +218,7 @@ function switchTab(tab) {
   // Show/hide filters per tab
   document.getElementById('filter-country').style.display = tab === 'leads' || tab === 'profiles' ? '' : 'none';
   document.getElementById('filter-priority').style.display = tab === 'leads' ? '' : 'none';
-  document.getElementById('filter-vc').style.display = tab === 'signals' || tab === 'multivc' ? '' : 'none';
+  document.getElementById('filter-vc').style.display = ['signals','multivc','followers'].includes(tab) ? '' : 'none';
 
   render();
 }
@@ -214,6 +226,7 @@ function switchTab(tab) {
 function render() {
   if (currentTab === 'leads') renderLeads();
   else if (currentTab === 'profiles') renderProfiles();
+  else if (currentTab === 'followers') renderFollowers();
   else if (currentTab === 'signals') renderSignals();
   else if (currentTab === 'multivc') renderMultiVC();
 }
@@ -302,6 +315,29 @@ function renderProfiles() {
       </div>
       ${r.bio ? `<div class="bio">${esc(r.bio.slice(0,120))}${r.bio.length > 120 ? '…' : ''}</div>` : ''}
       ${r.country ? `<div class="via"><span>📍 ${esc(r.country)}</span></div>` : ''}
+    </div>`
+  ));
+}
+
+function renderFollowers() {
+  const q = getSearch(), vc = getVC();
+  let items = (allData.followers || []).filter(r =>
+    matchesSearch(q, r.username, r.display_name, r.description) &&
+    (!vc || r.watcher_name === vc)
+  );
+  setCount(items.length);
+  if (!items.length) { setEmpty('Noch keine Follower gespeichert.'); return; }
+
+  setGrid(items.map(r => `
+    <div class="card signal">
+      <div class="card-top">
+        <div>
+          <div class="username"><a href="${r.twitter_url || '#'}" target="_blank">@${esc(r.username)}</a></div>
+          <div class="display-name">${esc(r.display_name || '')}</div>
+        </div>
+      </div>
+      ${r.description ? `<div class="bio">${esc(r.description.slice(0,120))}${r.description.length > 120 ? '…' : ''}</div>` : ''}
+      <div class="via"><span>folgt ${esc(r.watcher_name)}</span></div>
     </div>`
   ));
 }

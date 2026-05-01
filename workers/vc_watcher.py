@@ -44,7 +44,8 @@ WATCHED_ACCOUNTS = [
 WATCHER_NAMES = {w["id"]: w["name"] for w in WATCHED_ACCOUNTS}
 
 # How many pages to fetch for the following list (200 users/page)
-MAX_FOLLOWING_PAGES = 50
+# Keep low to avoid long API calls — increases automatically over time via incremental scans
+MAX_FOLLOWING_PAGES = 3
 # Only 1 page of followers per scan to keep API usage minimal
 MAX_FOLLOWER_PAGES = 1
 # Multi-VC overlap thresholds
@@ -201,10 +202,26 @@ def run_following_scan() -> int:
         current_ids = [u["id"] for u in current]
 
         if not known:
-            # First run — seed without firing signals
+            # First run — seed: save all followed accounts as profiles + mark as known
             with get_db() as db:
+                for user in current:
+                    profile_id = upsert_founder(
+                        db,
+                        twitter_handle=user["username"],
+                        name=user["name"],
+                        bio=user.get("description"),
+                    )
+                    add_signal(
+                        db,
+                        profile_id=profile_id,
+                        source="vc_watcher",
+                        signal_type="vc_following",
+                        raw_text=f"{watcher_name} follows @{user['username']}",
+                        url=f"https://x.com/{user['username']}",
+                    )
                 _save_known_following(db, watcher_id, current_ids)
-            logger.info("VC Following scan: seeded %d accounts for %s", len(current_ids), watcher_name)
+            logger.info("VC Following scan: seeded %d profiles for %s", len(current_ids), watcher_name)
+            new_count += len(current)
             continue
 
         new_follows = [u for u in current if u["id"] not in known]

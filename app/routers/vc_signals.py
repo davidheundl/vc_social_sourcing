@@ -1,8 +1,9 @@
 """
 VC Signals router — exposes data from the VC Watcher workers.
 
-GET /vc-signals/new-follows     — people a watched VC recently started following
-GET /vc-signals/multi-vc        — people who followed 3+ VCs within 48h (high-intent founders)
+GET /vc-signals/followers        — all recent followers of watched VCs
+GET /vc-signals/new-follows      — people a watched VC recently started following
+GET /vc-signals/multi-vc         — people who followed 3+ VCs within 48h (high-intent founders)
 """
 
 from datetime import datetime, timezone, timedelta
@@ -17,6 +18,34 @@ from app.models.vc_follower import VcFollower
 from workers.vc_watcher import WATCHER_NAMES, MIN_VC_OVERLAP, FOLLOWER_WINDOW_HOURS
 
 router = APIRouter(prefix="/vc-signals", tags=["VC Signals"])
+
+
+@router.get("/followers")
+def get_vc_followers(
+    watcher: str = Query(default="", description="Filter by VC name"),
+    limit: int = Query(default=200, ge=1, le=500),
+):
+    """All people stored as recent followers of watched VCs."""
+    with SessionLocal() as db:
+        q = db.query(VcFollower).order_by(VcFollower.first_seen.desc())
+        if watcher:
+            wid = next((k for k, v in WATCHER_NAMES.items() if v == watcher), None)
+            if wid:
+                q = q.filter(VcFollower.watcher_id == wid)
+        rows = q.limit(limit).all()
+
+    return [
+        {
+            "follower_id": r.follower_id,
+            "username": r.username,
+            "display_name": r.display_name,
+            "description": r.description,
+            "watcher_name": WATCHER_NAMES.get(r.watcher_id, r.watcher_id),
+            "first_seen": r.first_seen.isoformat() if r.first_seen else None,
+            "twitter_url": f"https://x.com/{r.username}" if r.username else None,
+        }
+        for r in rows
+    ]
 
 
 @router.get("/new-follows")
