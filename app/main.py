@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from app.database import Base, SessionLocal
 from app.routers import profiles, scoring, graph, ingest, sourcing
 from app.routers import vc_signals
+from app.routers import founders
 
 LOGGING_CONFIG = {
     "version": 1,
@@ -76,6 +77,17 @@ app.include_router(graph.router)
 app.include_router(ingest.router)
 app.include_router(sourcing.router)
 app.include_router(vc_signals.router)
+app.include_router(founders.router)
+
+# Serve the React frontend at /new (SPA — all sub-routes return index.html)
+_frontend_react = Path(__file__).parent.parent / "frontend_react" / "dist"
+if _frontend_react.exists():
+    app.mount("/new/assets", StaticFiles(directory=str(_frontend_react / "assets")), name="new-assets")
+
+    @app.get("/new", include_in_schema=False)
+    @app.get("/new/{path:path}", include_in_schema=False)
+    async def new_frontend(path: str = ""):
+        return FileResponse(str(_frontend_react / "index.html"))
 
 # Serve the frontend dashboard
 _frontend = Path(__file__).parent.parent / "frontend"

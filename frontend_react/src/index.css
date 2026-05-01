@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 222 20% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 20% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 20% 12%;
+
+    --primary: 230 80% 56%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 93%;
+    --secondary-foreground: 222 20% 12%;
+
+    --muted: 220 14% 93%;
+    --muted-foreground: 215 14% 45%;
+
+    --accent: 168 70% 42%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 87%;
+    --input: 220 13% 87%;
+    --ring: 230 80% 56%;
+
+    --radius: 0.625rem;
+
+    --warning: 38 92% 50%;
+    --success: 168 70% 42%;
+    --score-high: 168 70% 42%;
+    --score-medium: 38 92% 50%;
+    --score-low: 0 72% 51%;
+
+    --graph-bg: 220 20% 96%;
+    --graph-dot: 220 14% 82%;
+    --graph-accent: 190 100% 50%;
+    --graph-pulse: 190 100% 50%;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 20% 12%;
+    --sidebar-primary: 230 80% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 93%;
+    --sidebar-accent-foreground: 222 20% 12%;
+    --sidebar-border: 220 13% 87%;
+    --sidebar-ring: 230 80% 56%;
+
+    --font-heading: 'Plus Jakarta Sans', sans-serif;
+    --font-body: 'Plus Jakarta Sans', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+  }
+
+  code, pre {
+    font-family: var(--font-mono);
+  }
+}
+
+@layer utilities {
+  .glow-primary {
+    box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.15);
+  }
+  .glow-accent {
+    box-shadow: 0 0 20px -5px hsl(var(--accent) / 0.15);
+  }
+  .glass {
+    @apply bg-white/80 backdrop-blur-xl border border-white/60 shadow-lg;
+  }
+  .glass-panel {
+    @apply bg-white/90 backdrop-blur-2xl border border-border/50 shadow-xl;
+  }
+  .glass-float {
+    @apply bg-white/70 backdrop-blur-lg border border-white/40 shadow-md;
+  }
+}
