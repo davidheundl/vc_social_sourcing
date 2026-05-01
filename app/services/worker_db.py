@@ -37,7 +37,7 @@ _SEED_INVESTORS = [
 _JOB_NAMES = [
     "twitter_crawler", "google_dorker", "proxycurl_enricher",
     "producthunt_crawler", "hackernews_crawler", "social_lookup",
-    "scoring_refresh",
+    "scoring_refresh", "vc_following_scan", "vc_follower_scan",
 ]
 
 

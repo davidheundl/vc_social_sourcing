@@ -125,6 +125,16 @@ def _social_lookup_job() -> int:
     return run()
 
 
+def _vc_following_job() -> int:
+    from workers.vc_watcher import run_following
+    return run_following()
+
+
+def _vc_follower_job() -> int:
+    from workers.vc_watcher import run_followers
+    return run_followers()
+
+
 def start_scheduler() -> BackgroundScheduler:
     global _scheduler
 
@@ -189,6 +199,24 @@ def start_scheduler() -> BackgroundScheduler:
         trigger=IntervalTrigger(minutes=15),
         id="scoring_refresh",
         name="Founder Score Refresh",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    scheduler.add_job(
+        _guarded("vc_following_scan", _vc_following_job),
+        trigger=IntervalTrigger(minutes=5),
+        id="vc_following_scan",
+        name="VC Following Scanner",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    scheduler.add_job(
+        _guarded("vc_follower_scan", _vc_follower_job),
+        trigger=IntervalTrigger(minutes=5),
+        id="vc_follower_scan",
+        name="VC Follower Overlap Scanner",
         replace_existing=True,
         max_instances=1,
     )

@@ -6,8 +6,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, SessionLocal
-from app.routers import profiles, scoring, graph, ingest
-from app.routers import sourcing
+from app.routers import profiles, scoring, graph, ingest, sourcing
+from app.routers import vc_signals
 
 LOGGING_CONFIG = {
     "version": 1,
@@ -69,6 +69,7 @@ app.include_router(scoring.router)
 app.include_router(graph.router)
 app.include_router(ingest.router)
 app.include_router(sourcing.router)
+app.include_router(vc_signals.router)
 
 
 @app.get("/health", tags=["meta"])
