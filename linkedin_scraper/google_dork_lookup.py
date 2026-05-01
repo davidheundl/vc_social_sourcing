@@ -1,7 +1,6 @@
 """
-Runs targeted Google dork queries for two people across platforms
-we don't already cover (LinkedIn via Apify, Product Hunt via its own API).
-Searches Twitter/X, GitHub, Crunchbase, AngelList, news, and the open web.
+Runs targeted Google dork queries for two people across
+GitHub, Crunchbase, and AngelList.
 Saves all results to google_dork_results.json.
 """
 
@@ -27,12 +26,9 @@ TARGETS = [
 ]
 
 QUERY_TEMPLATES = [
-    'site:twitter.com OR site:x.com "{name}"',
     'site:github.com "{name}"',
     'site:crunchbase.com "{name}"',
     'site:angel.co "{name}"',
-    '"{name}" (startup OR founder OR "co-founder" OR engineer OR developer)',
-    '"{name}" (interview OR "featured in" OR "press" OR "techcrunch" OR "forbes")',
 ]
 
 
