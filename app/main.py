@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.database import engine, Base, SessionLocal
+from app.database import Base, SessionLocal
 from app.routers import profiles, scoring, graph, ingest
 from app.routers import sourcing
 
@@ -31,7 +31,7 @@ logger = logging.getLogger("main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting VC Lead Intelligence API …")
-    Base.metadata.create_all(bind=engine)
+    # Schema is managed by Alembic — run `alembic upgrade head` before starting.
 
     with SessionLocal() as db:
         from app.services.worker_db import seed_investors, seed_job_logs
