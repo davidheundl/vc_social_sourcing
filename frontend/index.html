@@ -162,7 +162,7 @@ async function loadHealth() {
 
 async function loadLeads() {
   try {
-    const d = await get('/ranked-leads?limit=200');
+    const d = await get('/ranked-leads?limit=2000&min_score=1');
     allData.leads = d;
     document.getElementById('badge-leads').textContent = d.length;
     document.getElementById('stat-signals').textContent = d.length;

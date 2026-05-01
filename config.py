@@ -5,6 +5,7 @@ load_dotenv()
 
 
 class Config:
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     RAPIDAPI_KEY: str = os.getenv("RAPIDAPI_KEY", "")
     PROXYCURL_API_KEY: str = os.getenv("PROXYCURL_API_KEY", "")
     SERPAPI_KEY: str = os.getenv("SERPAPI_KEY", "")

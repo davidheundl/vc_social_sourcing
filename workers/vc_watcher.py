@@ -23,6 +23,8 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models.vc_follower import VcFollower
 from app.services.worker_db import get_db, upsert_founder, add_signal, log_job, log_error
+from app.services.scoring_engine import compute_score
+from app.models.profile import Profile
 from config import config
 
 logger = logging.getLogger("vc_watcher")
@@ -244,9 +246,13 @@ def run_following_scan() -> int:
                         raw_text=f"{watcher_name} started following @{user['username']}",
                         url=f"https://x.com/{user['username']}",
                     )
+                    # Score with LLM immediately
+                    profile = db.get(Profile, profile_id)
+                    if profile:
+                        compute_score(profile, db, use_llm=True)
                     new_count += 1
                     logger.info(
-                        "VC Following: %s → @%s", watcher_name, user["username"]
+                        "VC Following: %s → @%s (scored)", watcher_name, user["username"]
                     )
                 _save_known_following(db, watcher_id, [u["id"] for u in new_follows])
 
@@ -274,6 +280,7 @@ def run_follower_scan() -> int:
                 logger.info("VC Followers: no data for %s", watcher["name"])
                 continue
 
+            new_followers = []
             for u in users:
                 existing = db.get(VcFollower, (watcher["id"], u["id"]))
                 if existing:
@@ -288,8 +295,22 @@ def run_follower_scan() -> int:
                         display_name=u["name"],
                         description=u.get("description", ""),
                     ))
+                    new_followers.append(u)
 
             db.commit()
+
+            # Upsert new followers as profiles and score with LLM
+            for u in new_followers:
+                profile_id = upsert_founder(
+                    db,
+                    twitter_handle=u["username"],
+                    name=u["name"],
+                    bio=u.get("description"),
+                )
+                profile = db.get(Profile, profile_id)
+                if profile:
+                    compute_score(profile, db, use_llm=True)
+
             total += len(users)
             logger.info("VC Followers: stored %d for %s", len(users), watcher["name"])
             time.sleep(1.5)
