@@ -12,6 +12,7 @@ from datetime import datetime, timezone, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from database import get_db, log_job, log_error
@@ -103,6 +104,11 @@ def _google_job() -> int:
     return run()
 
 
+def _google_job_forced() -> int:
+    from workers.google_dorker import run
+    return run(force=True)
+
+
 def _proxycurl_job() -> int:
     from workers.proxycurl_enricher import run
     return run()
@@ -135,6 +141,7 @@ def start_scheduler() -> BackgroundScheduler:
         name="Twitter/X Stealth Crawler",
         replace_existing=True,
         max_instances=1,
+        next_run_time=datetime.now(timezone.utc),
     )
 
     scheduler.add_job(
@@ -160,6 +167,16 @@ def start_scheduler() -> BackgroundScheduler:
         trigger=CronTrigger(hour=8, minute=0),
         id="producthunt_crawler",
         name="ProductHunt Maker Crawler",
+        replace_existing=True,
+        max_instances=1,
+        next_run_time=datetime.now(timezone.utc),
+    )
+
+    scheduler.add_job(
+        _guarded("google_dorker", _google_job_forced),
+        trigger=DateTrigger(run_date=datetime.now(timezone.utc)),
+        id="google_dorker_startup",
+        name="Google Dorker (startup run)",
         replace_existing=True,
         max_instances=1,
     )
