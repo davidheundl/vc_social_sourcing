@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.profile import Profile
+from app.models.signal import Signal
 from app.schemas.profile import ProfileCreate, ProfileOut
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
@@ -17,8 +18,9 @@ def list_profiles(
     country: Optional[str] = Query(None),
     source: Optional[str] = Query(None),
     is_seed: Optional[bool] = Query(None),
+    watcher: Optional[str] = Query(None, description="Filter by VC name, e.g. 'NirkDowztski (test)'"),
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 5000,
     db: Session = Depends(get_db),
 ):
     q = db.query(Profile)
@@ -28,6 +30,11 @@ def list_profiles(
         q = q.filter(Profile.source == source)
     if is_seed is not None:
         q = q.filter(Profile.is_seed == is_seed)
+    if watcher:
+        q = q.join(Signal, Signal.profile_id == Profile.id).filter(
+            Signal.source == "vc_watcher",
+            Signal.raw_text.ilike(f"%{watcher}%"),
+        ).distinct()
     return q.offset(skip).limit(limit).all()
 
 

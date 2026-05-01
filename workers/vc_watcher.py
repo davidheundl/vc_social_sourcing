@@ -32,13 +32,14 @@ logger = logging.getLogger("vc_watcher")
 # ---------------------------------------------------------------------------
 
 WATCHED_ACCOUNTS = [
-    {"name": "Paul Graham",         "id": "183749519",           "username": "paulg"},
-    {"name": "Garry Tan",           "id": "11768582",            "username": "garrytan"},
-    {"name": "Christoph Janz",      "id": "273383",              "username": "chrija"},
-    {"name": "Reshma Sohoni",       "id": "26743889",            "username": "reshmacs"},
-    {"name": "Klaus Hommels",       "id": "21870345",            "username": "hommels"},
-    {"name": "Balderton Capital",   "id": "16650886",            "username": "balderton"},
-    {"name": "Atomico",             "id": "44579473",            "username": "atomico"},
+    {"name": "Paul Graham",         "id": "183749519",              "username": "paulg"},
+    {"name": "Garry Tan",           "id": "11768582",               "username": "garrytan"},
+    {"name": "Christoph Janz",      "id": "273383",                 "username": "chrija"},
+    {"name": "Reshma Sohoni",       "id": "26743889",               "username": "reshmacs"},
+    {"name": "Klaus Hommels",       "id": "21870345",               "username": "hommels"},
+    {"name": "Balderton Capital",   "id": "16650886",               "username": "balderton"},
+    {"name": "Atomico",             "id": "44579473",               "username": "atomico"},
+    {"name": "NirkDowztski (test)", "id": "1467509644260225028",    "username": "NirkDowztski"},
 ]
 
 WATCHER_NAMES = {w["id"]: w["name"] for w in WATCHED_ACCOUNTS}
@@ -46,8 +47,8 @@ WATCHER_NAMES = {w["id"]: w["name"] for w in WATCHED_ACCOUNTS}
 # How many pages to fetch for the following list (200 users/page)
 # Keep low to avoid long API calls — increases automatically over time via incremental scans
 MAX_FOLLOWING_PAGES = 3
-# Only 1 page of followers per scan to keep API usage minimal
-MAX_FOLLOWER_PAGES = 1
+# Pages of followers per scan (each page ~50-70 users from the API)
+MAX_FOLLOWER_PAGES = 5
 # Multi-VC overlap thresholds
 MIN_VC_OVERLAP = 3
 FOLLOWER_WINDOW_HOURS = 48

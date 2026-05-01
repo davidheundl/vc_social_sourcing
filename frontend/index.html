@@ -123,7 +123,7 @@ input[type=search]:focus, select:focus { outline: none; border-color: #58a6ff; }
     <option value="low">Low</option>
   </select>
 
-  <select id="filter-vc" onchange="applyFilter()" style="display:none">
+  <select id="filter-vc" onchange="onVCFilterChange()" style="display:none">
     <option value="">Alle VCs</option>
     <option value="Paul Graham">Paul Graham</option>
     <option value="Garry Tan">Garry Tan</option>
@@ -132,6 +132,7 @@ input[type=search]:focus, select:focus { outline: none; border-color: #58a6ff; }
     <option value="Klaus Hommels">Klaus Hommels</option>
     <option value="Balderton Capital">Balderton Capital</option>
     <option value="Atomico">Atomico</option>
+    <option value="NirkDowztski (test)">NirkDowztski (test)</option>
   </select>
 
   <span class="result-count" id="result-count"></span>
@@ -169,14 +170,23 @@ async function loadLeads() {
   } catch(e) { console.error('leads', e); }
 }
 
-async function loadProfiles() {
+async function loadProfiles(watcher = '') {
   try {
-    const d = await get('/profiles/?limit=200');
+    const params = watcher ? `/profiles/?limit=5000&watcher=${encodeURIComponent(watcher)}` : '/profiles/?limit=5000';
+    const d = await get(params);
     allData.profiles = d;
     document.getElementById('badge-profiles').textContent = d.length;
     populateCountryFilter(d);
     if (currentTab === 'profiles') renderProfiles();
   } catch(e) { console.error('profiles', e); }
+}
+
+async function onVCFilterChange() {
+  if (currentTab === 'profiles') {
+    await loadProfiles(getVC());
+  } else {
+    applyFilter();
+  }
 }
 
 async function loadFollowers() {
@@ -218,7 +228,8 @@ function switchTab(tab) {
   // Show/hide filters per tab
   document.getElementById('filter-country').style.display = tab === 'leads' || tab === 'profiles' ? '' : 'none';
   document.getElementById('filter-priority').style.display = tab === 'leads' ? '' : 'none';
-  document.getElementById('filter-vc').style.display = ['signals','multivc','followers'].includes(tab) ? '' : 'none';
+  document.getElementById('filter-vc').style.display = ['signals','multivc','followers','profiles'].includes(tab) ? '' : 'none';
+  if (tab !== 'profiles') document.getElementById('filter-vc').value = '';
 
   render();
 }
