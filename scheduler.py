@@ -1,17 +1,12 @@
 """
-APScheduler setup. All workers are registered here.
-
-Worker failure policy
----------------------
-Each job is wrapped in _guarded(). If a job fails 3 consecutive times,
-it is paused for 1 hour and a WARNING is printed to the console.
+APScheduler setup. All workers run once immediately on startup.
+Scoring refresh continues every 15 minutes to update scores as data arrives.
 """
 
 import logging
 from datetime import datetime, timezone, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
@@ -36,7 +31,6 @@ def _is_paused(job_name: str) -> bool:
                 paused_until = paused_until.replace(tzinfo=timezone.utc)
             if datetime.now(timezone.utc) < paused_until:
                 return True
-            # Un-pause: reset consecutive_failures
             conn.execute(
                 "UPDATE jobs_log SET paused_until = NULL, consecutive_failures = 0 WHERE job_name = ?",
                 (job_name,),
@@ -64,7 +58,6 @@ def _check_and_maybe_pause(job_name: str) -> None:
 
 
 def _guarded(job_name: str, func):
-    """Wrap a worker function with failure counting and pause logic."""
     def wrapper():
         if _is_paused(job_name):
             logger.info("Worker '%s' is paused — skipping this run", job_name)
@@ -89,18 +82,12 @@ def _guarded(job_name: str, func):
     return wrapper
 
 
-def _scoring_refresh_job() -> int:
-    from scoring import refresh_all_scores
-    return refresh_all_scores()
+def _now(offset_seconds: int = 0) -> datetime:
+    return datetime.now(timezone.utc) + timedelta(seconds=offset_seconds)
 
 
 def _twitter_job() -> int:
     from workers.twitter_crawler import run
-    return run()
-
-
-def _google_job() -> int:
-    from workers.google_dorker import run
     return run()
 
 
@@ -129,77 +116,73 @@ def _social_lookup_job() -> int:
     return run()
 
 
+def _scoring_refresh_job() -> int:
+    from scoring import refresh_all_scores
+    return refresh_all_scores()
+
+
 def start_scheduler() -> BackgroundScheduler:
     global _scheduler
 
     scheduler = BackgroundScheduler(timezone="UTC")
 
+    # All crawlers run once immediately on startup, staggered by a few seconds
+    # so they don't all hammer the DB at the exact same moment.
     scheduler.add_job(
         _guarded("twitter_crawler", _twitter_job),
-        trigger=IntervalTrigger(minutes=30),
+        trigger=DateTrigger(run_date=_now(0)),
         id="twitter_crawler",
-        name="Twitter/X Stealth Crawler",
-        replace_existing=True,
-        max_instances=1,
-        next_run_time=datetime.now(timezone.utc),
-    )
-
-    scheduler.add_job(
-        _guarded("google_dorker", _google_job),
-        trigger=CronTrigger(hour="*/6"),
-        id="google_dorker",
-        name="Google Dorker (LinkedIn)",
-        replace_existing=True,
-        max_instances=1,
-    )
-
-    scheduler.add_job(
-        _guarded("proxycurl_enricher", _proxycurl_job),
-        trigger=IntervalTrigger(hours=2),
-        id="proxycurl_enricher",
-        name="Proxycurl LinkedIn Enricher",
+        name="Twitter/X Stealth Crawler (startup)",
         replace_existing=True,
         max_instances=1,
     )
 
     scheduler.add_job(
         _guarded("producthunt_crawler", _producthunt_job),
-        trigger=CronTrigger(hour=8, minute=0),
+        trigger=DateTrigger(run_date=_now(5)),
         id="producthunt_crawler",
-        name="ProductHunt Maker Crawler",
+        name="ProductHunt Maker Crawler (startup)",
         replace_existing=True,
         max_instances=1,
-        next_run_time=datetime.now(timezone.utc),
     )
 
     scheduler.add_job(
         _guarded("google_dorker", _google_job_forced),
-        trigger=DateTrigger(run_date=datetime.now(timezone.utc)),
-        id="google_dorker_startup",
-        name="Google Dorker (startup run)",
+        trigger=DateTrigger(run_date=_now(10)),
+        id="google_dorker",
+        name="Google Dorker / SerpAPI (startup)",
         replace_existing=True,
         max_instances=1,
     )
 
     scheduler.add_job(
         _guarded("hackernews_crawler", _hackernews_job),
-        trigger=CronTrigger(hour="*/6"),
+        trigger=DateTrigger(run_date=_now(15)),
         id="hackernews_crawler",
-        name="HackerNews Talent Crawler",
+        name="HackerNews Talent Crawler (startup)",
         replace_existing=True,
         max_instances=1,
     )
 
-    # Runs 2h after HN/PH crawlers so fresh discoveries are ready to enrich
+    scheduler.add_job(
+        _guarded("proxycurl_enricher", _proxycurl_job),
+        trigger=DateTrigger(run_date=_now(20)),
+        id="proxycurl_enricher",
+        name="Proxycurl LinkedIn Enricher (startup)",
+        replace_existing=True,
+        max_instances=1,
+    )
+
     scheduler.add_job(
         _guarded("social_lookup", _social_lookup_job),
-        trigger=CronTrigger(hour="2,6,10,14,18,22"),
+        trigger=DateTrigger(run_date=_now(25)),
         id="social_lookup",
-        name="Social Profile Lookup (LinkedIn + Twitter)",
+        name="Social Profile Lookup (startup)",
         replace_existing=True,
         max_instances=1,
     )
 
+    # Scoring keeps refreshing every 15 min so scores update as data arrives
     scheduler.add_job(
         _guarded("scoring_refresh", _scoring_refresh_job),
         trigger=IntervalTrigger(minutes=15),
@@ -207,11 +190,12 @@ def start_scheduler() -> BackgroundScheduler:
         name="Founder Score Refresh",
         replace_existing=True,
         max_instances=1,
+        next_run_time=_now(30),
     )
 
     scheduler.start()
     _scheduler = scheduler
-    logger.info("APScheduler started with %d jobs", len(scheduler.get_jobs()))
+    logger.info("APScheduler started — all crawlers will fire once on startup")
     return scheduler
 
 
