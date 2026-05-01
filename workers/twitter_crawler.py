@@ -124,17 +124,12 @@ def run() -> int:
     new_count = 0
     seen_author_ids: set[int] = set()
 
+    # Kept to the highest-signal queries to minimise API cost.
+    # Each query = 1 API call; max_results caps tweets returned per call.
     queries = [
         '"stealth startup"',
-        '"stealth mode founder"',
-        '"working on something stealth"',
-        '"building in public"',
-        '"day 1 of building"',
         '"just quit my job to build"',
-        '"soft launch"',
         '"just incorporated"',
-        '"just registered my company"',
-        '"looking for angel"',
         '"pre-seed round"',
         '"looking for cofounder"',
     ]
@@ -145,7 +140,7 @@ def run() -> int:
             logger.info("Twitter: searching for %s", raw_query)
 
             try:
-                tweets = _search_with_backoff(client, full_query, max_results=100)
+                tweets = _search_with_backoff(client, full_query, max_results=10)
             except Exception as exc:
                 with get_db() as conn:
                     log_error(conn, "twitter_crawler", str(exc))

@@ -374,27 +374,37 @@ async def root():
 @app.get("/dashboard", include_in_schema=False)
 async def dashboard():
     from fastapi.responses import HTMLResponse
+    import html as html_lib
 
     with get_db() as conn:
-        rows = conn.execute(
+        founders = conn.execute(
             "SELECT * FROM founders ORDER BY score DESC LIMIT 200"
         ).fetchall()
         stats = {
             "total": conn.execute("SELECT COUNT(*) FROM founders").fetchone()[0],
             "signals": conn.execute("SELECT COUNT(*) FROM signals").fetchone()[0],
         }
+        # Fetch all twitter + producthunt signals in one query
+        raw_signals = conn.execute(
+            """SELECT founder_id, source, signal_type, raw_text, url
+               FROM signals
+               WHERE source IN ('twitter','producthunt') AND signal_type != 'follower_count'
+               ORDER BY created_at DESC"""
+        ).fetchall()
 
-    source_colors = {
+    # Group signals by founder_id
+    from collections import defaultdict
+    signals_by_founder: dict[int, list] = defaultdict(list)
+    for s in raw_signals:
+        signals_by_founder[s["founder_id"]].append(s)
+
+    SOURCE_COLOR = {
         "twitter": "#1DA1F2",
         "linkedin": "#0A66C2",
         "producthunt": "#DA552F",
         "google": "#34A853",
         "hackernews": "#FF6600",
     }
-
-    def badge(source: str) -> str:
-        color = source_colors.get(source, "#888")
-        return f'<span style="background:{color};color:#fff;padding:2px 7px;border-radius:10px;font-size:11px;margin:1px;display:inline-block">{source}</span>'
 
     def score_color(score: int) -> str:
         if score >= 70:
@@ -403,29 +413,69 @@ async def dashboard():
             return "#d97706"
         return "#dc2626"
 
-    rows_html = ""
-    for r in rows:
-        import json
-        try:
-            signals = json.loads(r["signals"]) if isinstance(r["signals"], str) else (r["signals"] or [])
-        except Exception:
-            signals = []
-        badges = "".join(badge(s) for s in signals)
-        sc = r["score"] or 0
-        twitter = f'<a href="https://twitter.com/{r["twitter_handle"]}" target="_blank">@{r["twitter_handle"]}</a>' if r["twitter_handle"] else "—"
-        linkedin = f'<a href="{r["linkedin_url"]}" target="_blank">LinkedIn</a>' if r["linkedin_url"] else "—"
-        rows_html += f"""
-        <tr>
-            <td style="font-weight:600">{r["name"] or "Unknown"}</td>
-            <td>{twitter}</td>
-            <td>{linkedin}</td>
-            <td style="text-align:center">
-                <span style="font-weight:700;color:{score_color(sc)};font-size:16px">{sc}</span>
-            </td>
-            <td>{badges or "—"}</td>
-            <td style="font-size:12px;color:#555;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{(r['bio'] or '').replace(chr(34), '')}">{r["bio"] or "—"}</td>
-            <td style="font-size:12px;color:#888">{(r["first_seen"] or "")[:10]}</td>
-        </tr>"""
+    def source_badge(source: str) -> str:
+        color = SOURCE_COLOR.get(source, "#888")
+        return (f'<span style="background:{color};color:#fff;padding:1px 7px;'
+                f'border-radius:10px;font-size:11px">{source}</span>')
+
+    cards_html = ""
+    for f in founders:
+        sc = f["score"] or 0
+        fid = f["id"]
+        name = html_lib.escape(f["name"] or "Unknown")
+        bio = html_lib.escape(f["bio"] or "")
+        location = html_lib.escape(f["location"] or "")
+
+        twitter_link = (
+            f'<a href="https://twitter.com/{f["twitter_handle"]}" target="_blank">'
+            f'@{html_lib.escape(f["twitter_handle"])}</a>'
+            if f["twitter_handle"] else ""
+        )
+        linkedin_link = (
+            f'<a href="{html_lib.escape(f["linkedin_url"])}" target="_blank">LinkedIn ↗</a>'
+            if f["linkedin_url"] else ""
+        )
+        links = " · ".join(filter(None, [twitter_link, linkedin_link])) or "—"
+
+        # Build signal cards
+        sigs = signals_by_founder.get(fid, [])
+        sig_html = ""
+        for s in sigs:
+            color = SOURCE_COLOR.get(s["source"], "#888")
+            text = html_lib.escape(s["raw_text"] or "")
+            link_part = (f' <a href="{html_lib.escape(s["url"])}" target="_blank" '
+                         f'style="color:{color};font-size:11px">View ↗</a>'
+                         if s["url"] else "")
+            sig_html += (
+                f'<div style="border-left:3px solid {color};padding:6px 10px;'
+                f'margin-top:6px;background:#f8fafc;border-radius:0 4px 4px 0;font-size:12px;color:#334155">'
+                f'{source_badge(s["source"])} '
+                f'<span style="margin-left:6px">{text}</span>{link_part}</div>'
+            )
+
+        # Source badges from distinct sources in signals
+        distinct_sources = list(dict.fromkeys(s["source"] for s in sigs))
+        badges = " ".join(source_badge(src) for src in distinct_sources)
+
+        cards_html += f"""
+<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:18px 20px;margin-bottom:12px">
+  <div style="display:flex;align-items:flex-start;gap:16px">
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:16px;font-weight:700;color:#0f172a">{name}</span>
+        {f'<span style="font-size:12px;color:#64748b">{location}</span>' if location else ''}
+        {badges}
+      </div>
+      {f'<div style="font-size:13px;color:#475569;margin-top:4px">{bio}</div>' if bio else ''}
+      <div style="font-size:12px;color:#94a3b8;margin-top:4px">{links}</div>
+    </div>
+    <div style="text-align:center;flex-shrink:0">
+      <div style="font-size:28px;font-weight:800;color:{score_color(sc)}">{sc}</div>
+      <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">score</div>
+    </div>
+  </div>
+  {f'<div style="margin-top:8px">{sig_html}</div>' if sig_html else ''}
+</div>"""
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -435,20 +485,15 @@ async def dashboard():
 <title>VC Founder Sourcing</title>
 <style>
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #1e293b; }}
-  header {{ background: #0f172a; color: #fff; padding: 20px 32px; display: flex; align-items: center; gap: 16px; }}
+  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f1f5f9; color: #1e293b; }}
+  header {{ background: #0f172a; color: #fff; padding: 20px 32px; display: flex; align-items: center; }}
   header h1 {{ font-size: 20px; font-weight: 700; }}
   header p {{ font-size: 13px; color: #94a3b8; margin-top: 2px; }}
-  .stats {{ display: flex; gap: 16px; padding: 20px 32px; }}
-  .stat {{ background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 20px; min-width: 130px; }}
-  .stat .n {{ font-size: 28px; font-weight: 700; color: #0f172a; }}
-  .stat .l {{ font-size: 12px; color: #64748b; margin-top: 2px; }}
-  .table-wrap {{ padding: 0 32px 40px; overflow-x: auto; }}
-  table {{ width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }}
-  th {{ background: #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; padding: 10px 14px; text-align: left; border-bottom: 1px solid #e2e8f0; }}
-  td {{ padding: 10px 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }}
-  tr:last-child td {{ border-bottom: none; }}
-  tr:hover td {{ background: #f8fafc; }}
+  .stats {{ display: flex; gap: 12px; padding: 20px 32px 0; }}
+  .stat {{ background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 18px; }}
+  .stat .n {{ font-size: 26px; font-weight: 700; color: #0f172a; }}
+  .stat .l {{ font-size: 11px; color: #64748b; margin-top: 2px; text-transform: uppercase; letter-spacing: .05em; }}
+  .cards {{ padding: 20px 32px 40px; max-width: 960px; }}
   a {{ color: #3b82f6; text-decoration: none; }}
   a:hover {{ text-decoration: underline; }}
   .empty {{ text-align: center; padding: 60px; color: #94a3b8; font-size: 15px; }}
@@ -460,24 +505,16 @@ async def dashboard():
     <h1>VC Founder Sourcing</h1>
     <p>Early-stage stealth founders — sorted by signal score</p>
   </div>
-  <div style="margin-left:auto;font-size:12px;color:#64748b">
-    <a href="/docs" style="color:#7dd3fc">API docs</a>
+  <div style="margin-left:auto;font-size:12px">
+    <a href="/docs" style="color:#7dd3fc">API docs ↗</a>
   </div>
 </header>
 <div class="stats">
   <div class="stat"><div class="n">{stats["total"]}</div><div class="l">Founders found</div></div>
   <div class="stat"><div class="n">{stats["signals"]}</div><div class="l">Signals collected</div></div>
 </div>
-<div class="table-wrap">
-{"<p class='empty'>No founders yet — crawlers are running, check back in a moment.</p>" if not rows else f"""
-  <table>
-    <thead>
-      <tr>
-        <th>Name</th><th>Twitter</th><th>LinkedIn</th><th style="text-align:center">Score</th><th>Sources</th><th>Bio</th><th>First seen</th>
-      </tr>
-    </thead>
-    <tbody>{rows_html}</tbody>
-  </table>"""}
+<div class="cards">
+  {'<p class="empty">No founders yet — crawlers are running, refresh in a moment.</p>' if not founders else cards_html}
 </div>
 </body>
 </html>"""
