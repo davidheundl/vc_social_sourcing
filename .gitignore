@@ -1,0 +1,15 @@
+# Environment & secrets
+.env
+
+# Database (local state)
+*.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# macOS
+.DS_Store
