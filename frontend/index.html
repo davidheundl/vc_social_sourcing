@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VC Talent Radar</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e1e4e8; min-height: 100vh; }
+
+/* Header */
+header { padding: 20px 32px; border-bottom: 1px solid #21262d; display: flex; align-items: center; justify-content: space-between; }
+.header-left { display: flex; align-items: center; gap: 12px; }
+header h1 { font-size: 18px; font-weight: 600; }
+.stats { display: flex; gap: 20px; }
+.stat { text-align: right; }
+.stat-value { font-size: 20px; font-weight: 700; color: #58a6ff; }
+.stat-label { font-size: 11px; color: #6e7681; text-transform: uppercase; }
+
+/* Tabs */
+.tabs { display: flex; padding: 0 32px; border-bottom: 1px solid #21262d; gap: 4px; }
+.tab { padding: 12px 18px; font-size: 13px; color: #8b949e; border-bottom: 2px solid transparent; cursor: pointer; user-select: none; white-space: nowrap; }
+.tab:hover { color: #c9d1d9; }
+.tab.active { color: #e1e4e8; border-bottom-color: #f78166; }
+.tab .badge { display: inline-flex; align-items: center; justify-content: center; background: #21262d; color: #8b949e; font-size: 10px; font-weight: 600; border-radius: 20px; padding: 1px 6px; margin-left: 6px; min-width: 18px; }
+.tab.active .badge { background: #1f6feb33; color: #58a6ff; }
+
+/* Controls */
+.controls { padding: 14px 32px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; border-bottom: 1px solid #21262d; }
+input[type=search], select {
+  background: #161b22; border: 1px solid #30363d; color: #e1e4e8;
+  padding: 7px 12px; border-radius: 6px; font-size: 13px;
+}
+input[type=search] { width: 240px; }
+input[type=search]:focus, select:focus { outline: none; border-color: #58a6ff; }
+.result-count { margin-left: auto; color: #6e7681; font-size: 12px; }
+
+/* Grid */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; padding: 24px 32px; }
+.empty { text-align: center; padding: 80px; color: #6e7681; grid-column: 1/-1; font-size: 14px; }
+.loading { text-align: center; padding: 60px; color: #6e7681; grid-column: 1/-1; }
+
+/* Cards */
+.card {
+  background: #161b22; border: 1px solid #21262d; border-radius: 10px;
+  padding: 16px; display: flex; flex-direction: column; gap: 8px;
+  transition: border-color 0.15s;
+}
+.card:hover { border-color: #30363d; }
+.card.high  { border-left: 3px solid #3fb950; }
+.card.mid   { border-left: 3px solid #d29922; }
+.card.low   { border-left: 3px solid #21262d; }
+.card.signal { border-left: 3px solid #58a6ff; }
+.card.multivc { border-left: 3px solid #f78166; }
+
+.card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.username { font-weight: 600; font-size: 14px; }
+.username a { color: #58a6ff; text-decoration: none; }
+.username a:hover { text-decoration: underline; }
+.display-name { font-size: 12px; color: #8b949e; margin-top: 1px; }
+
+.badges { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; flex-shrink: 0; }
+.badge-score { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+.badge-high  { background: #1a4a1f; color: #3fb950; }
+.badge-mid   { background: #3d2e05; color: #d29922; }
+.badge-low   { background: #21262d; color: #6e7681; }
+.badge-new   { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #1f6feb22; color: #58a6ff; border: 1px solid #1f6feb55; }
+.badge-vc    { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #3d1a05; color: #f78166; font-weight: 700; }
+.badge-prio  { font-size: 11px; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+.badge-high-prio  { background: #3d0a14; color: #ff7b72; }
+.badge-mid-prio   { background: #3d2e05; color: #d29922; }
+.badge-low-prio   { background: #21262d; color: #6e7681; }
+
+.bio { font-size: 12px; color: #c9d1d9; line-height: 1.5; }
+.reason { font-size: 11px; color: #6e7681; font-style: italic; }
+.via { font-size: 11px; color: #6e7681; }
+.via span { background: #21262d; padding: 1px 7px; border-radius: 20px; }
+
+.tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag { font-size: 11px; padding: 1px 7px; border-radius: 20px; background: #21262d; color: #8b949e; }
+
+.vcs-list { font-size: 11px; color: #8b949e; }
+.vcs-list strong { color: #f78166; }
+
+/* Spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner { width: 24px; height: 24px; border: 2px solid #21262d; border-top-color: #58a6ff; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <h1>VC Talent Radar</h1>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="stat-value" id="stat-profiles">—</div><div class="stat-label">Profiles</div></div>
+    <div class="stat"><div class="stat-value" id="stat-signals">—</div><div class="stat-label">VC Signals</div></div>
+    <div class="stat"><div class="stat-value" id="stat-multivc">—</div><div class="stat-label">Multi-VC</div></div>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="leads" onclick="switchTab('leads')">Top Leads <span class="badge" id="badge-leads">0</span></div>
+  <div class="tab" data-tab="profiles" onclick="switchTab('profiles')">Alle Profile <span class="badge" id="badge-profiles">0</span></div>
+  <div class="tab" data-tab="signals" onclick="switchTab('signals')">🔔 VC Follows <span class="badge" id="badge-signals">0</span></div>
+  <div class="tab" data-tab="multivc" onclick="switchTab('multivc')">🔥 Multi-VC <span class="badge" id="badge-multivc">0</span></div>
+</div>
+
+<div class="controls">
+  <input type="search" id="search" placeholder="Name, @handle, Bio…" oninput="debounceFilter()" autocomplete="off">
+
+  <select id="filter-country" onchange="applyFilter()" style="display:none">
+    <option value="">Alle Länder</option>
+  </select>
+
+  <select id="filter-priority" onchange="applyFilter()" style="display:none">
+    <option value="">Alle Prioritäten</option>
+    <option value="high">High</option>
+    <option value="medium">Medium</option>
+    <option value="low">Low</option>
+  </select>
+
+  <select id="filter-vc" onchange="applyFilter()" style="display:none">
+    <option value="">Alle VCs</option>
+    <option value="Paul Graham">Paul Graham</option>
+    <option value="Garry Tan">Garry Tan</option>
+    <option value="Christoph Janz">Christoph Janz</option>
+    <option value="Reshma Sohoni">Reshma Sohoni</option>
+    <option value="Klaus Hommels">Klaus Hommels</option>
+    <option value="Balderton Capital">Balderton Capital</option>
+    <option value="Atomico">Atomico</option>
+  </select>
+
+  <span class="result-count" id="result-count"></span>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+const API = '';
+let currentTab = 'leads';
+let allData = { leads: [], profiles: [], signals: [], multivc: [] };
+let debounceTimer;
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+
+async function boot() {
+  await Promise.all([loadHealth(), loadLeads(), loadProfiles(), loadSignals(), loadMultiVC()]);
+}
+
+async function loadHealth() {
+  try {
+    const d = await get('/health');
+    document.getElementById('stat-profiles').textContent = d.db_counts?.profiles ?? '—';
+  } catch {}
+}
+
+async function loadLeads() {
+  try {
+    const d = await get('/ranked-leads?limit=200');
+    allData.leads = d;
+    document.getElementById('badge-leads').textContent = d.length;
+    document.getElementById('stat-signals').textContent = d.length;
+    if (currentTab === 'leads') renderLeads();
+  } catch(e) { console.error('leads', e); }
+}
+
+async function loadProfiles() {
+  try {
+    const d = await get('/profiles/?limit=200');
+    allData.profiles = d;
+    document.getElementById('badge-profiles').textContent = d.length;
+    populateCountryFilter(d);
+    if (currentTab === 'profiles') renderProfiles();
+  } catch(e) { console.error('profiles', e); }
+}
+
+async function loadSignals() {
+  try {
+    const d = await get('/vc-signals/new-follows?limit=200');
+    allData.signals = d;
+    document.getElementById('badge-signals').textContent = d.length;
+    if (currentTab === 'signals') renderSignals();
+  } catch(e) { console.error('signals', e); }
+}
+
+async function loadMultiVC() {
+  try {
+    const d = await get('/vc-signals/multi-vc?window_hours=48');
+    allData.multivc = d;
+    document.getElementById('badge-multivc').textContent = d.length;
+    document.getElementById('stat-multivc').textContent = d.length;
+    if (currentTab === 'multivc') renderMultiVC();
+  } catch(e) { console.error('multivc', e); }
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.getElementById('search').value = '';
+
+  // Show/hide filters per tab
+  document.getElementById('filter-country').style.display = tab === 'leads' || tab === 'profiles' ? '' : 'none';
+  document.getElementById('filter-priority').style.display = tab === 'leads' ? '' : 'none';
+  document.getElementById('filter-vc').style.display = tab === 'signals' || tab === 'multivc' ? '' : 'none';
+
+  render();
+}
+
+function render() {
+  if (currentTab === 'leads') renderLeads();
+  else if (currentTab === 'profiles') renderProfiles();
+  else if (currentTab === 'signals') renderSignals();
+  else if (currentTab === 'multivc') renderMultiVC();
+}
+
+// ── Filters ───────────────────────────────────────────────────────────────
+
+function getSearch() { return document.getElementById('search').value.toLowerCase().trim(); }
+function getCountry() { return document.getElementById('filter-country').value; }
+function getPriority() { return document.getElementById('filter-priority').value; }
+function getVC() { return document.getElementById('filter-vc').value; }
+
+function matchesSearch(s, ...fields) {
+  if (!s) return true;
+  return fields.some(f => f && String(f).toLowerCase().includes(s));
+}
+
+function debounceFilter() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(applyFilter, 300);
+}
+
+function applyFilter() { render(); }
+
+function populateCountryFilter(profiles) {
+  const countries = [...new Set(profiles.map(p => p.country).filter(Boolean))].sort();
+  const sel = document.getElementById('filter-country');
+  sel.innerHTML = '<option value="">Alle Länder</option>' +
+    countries.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+// ── Renderers ─────────────────────────────────────────────────────────────
+
+function renderLeads() {
+  const q = getSearch(), country = getCountry(), prio = getPriority();
+  let items = allData.leads.filter(r =>
+    matchesSearch(q, r.full_name, r.twitter_handle, r.company_name_raw, r.role) &&
+    (!country || r.country === country) &&
+    (!prio || r.priority === prio)
+  );
+  setCount(items.length);
+  if (!items.length) { setEmpty('Keine Leads gefunden.'); return; }
+
+  setGrid(items.map(r => {
+    const score = r.score ?? 0;
+    const cls = score >= 70 ? 'high' : score >= 40 ? 'mid' : 'low';
+    const badgeCls = score >= 70 ? 'badge-high' : score >= 40 ? 'badge-mid' : 'badge-low';
+    const prioCls = r.priority === 'high' ? 'badge-high-prio' : r.priority === 'medium' ? 'badge-mid-prio' : 'badge-low-prio';
+    return `
+    <div class="card ${cls}">
+      <div class="card-top">
+        <div>
+          <div class="username">${twitterLink(r.twitter_handle) || linkedinLink(r.linkedin_url) || esc(r.full_name)}</div>
+          <div class="display-name">${esc(r.full_name)}${r.role ? ` · ${esc(r.role)}` : ''}${r.company_name_raw ? ` @ ${esc(r.company_name_raw)}` : ''}</div>
+        </div>
+        <div class="badges">
+          <span class="badge-score ${badgeCls}">${Math.round(score)}</span>
+          ${r.priority ? `<span class="badge-score badge-prio ${prioCls}">${r.priority}</span>` : ''}
+        </div>
+      </div>
+      ${r.country ? `<div class="via"><span>📍 ${esc(r.country)}</span></div>` : ''}
+      ${r.reasons?.length ? `<div class="reason">${r.reasons.slice(0,2).map(esc).join(' · ')}</div>` : ''}
+      ${r.linkedin_url ? `<div class="via"><span><a href="${r.linkedin_url}" target="_blank" style="color:#58a6ff;text-decoration:none">LinkedIn ↗</a></span></div>` : ''}
+    </div>`;
+  }));
+}
+
+function renderProfiles() {
+  const q = getSearch(), country = getCountry();
+  let items = allData.profiles.filter(r =>
+    matchesSearch(q, r.full_name, r.twitter_handle, r.linkedin_url, r.bio, r.role) &&
+    (!country || r.country === country)
+  );
+  setCount(items.length);
+  if (!items.length) { setEmpty('Keine Profile gefunden.'); return; }
+
+  setGrid(items.map(r => `
+    <div class="card low">
+      <div class="card-top">
+        <div>
+          <div class="username">${twitterLink(r.twitter_handle) || linkedinLink(r.linkedin_url) || esc(r.full_name)}</div>
+          <div class="display-name">${esc(r.full_name)}${r.role ? ` · ${esc(r.role)}` : ''}</div>
+        </div>
+        <div class="badges">
+          ${r.source ? `<span class="tag">${esc(r.source)}</span>` : ''}
+        </div>
+      </div>
+      ${r.bio ? `<div class="bio">${esc(r.bio.slice(0,120))}${r.bio.length > 120 ? '…' : ''}</div>` : ''}
+      ${r.country ? `<div class="via"><span>📍 ${esc(r.country)}</span></div>` : ''}
+    </div>`
+  ));
+}
+
+function renderSignals() {
+  const q = getSearch(), vc = getVC();
+  let items = allData.signals.filter(r =>
+    matchesSearch(q, r.raw_text, r.url) &&
+    (!vc || (r.raw_text || '').includes(vc))
+  );
+  setCount(items.length);
+  if (!items.length) { setEmpty('Noch keine VC Follow-Signals. Nächster Scan in wenigen Minuten.'); return; }
+
+  setGrid(items.map(r => {
+    const handle = extractHandle(r.url);
+    return `
+    <div class="card signal">
+      <div class="card-top">
+        <div class="username">${handle ? `<a href="${r.url}" target="_blank">@${esc(handle)}</a>` : esc(r.raw_text || '')}</div>
+        <span class="badge-new">✦ Neu</span>
+      </div>
+      <div class="bio">${esc(r.raw_text || '')}</div>
+      <div class="via"><span>${formatDate(r.detected_at)}</span></div>
+    </div>`;
+  }));
+}
+
+function renderMultiVC() {
+  const q = getSearch(), vc = getVC();
+  let items = allData.multivc.filter(r =>
+    matchesSearch(q, r.username, r.display_name, r.description) &&
+    (!vc || (r.vcs_followed || []).includes(vc))
+  );
+  setCount(items.length);
+  if (!items.length) { setEmpty('Noch keine Multi-VC Follower. Daten akkumulieren sich über die nächsten 48h.'); return; }
+
+  setGrid(items.map(r => `
+    <div class="card multivc">
+      <div class="card-top">
+        <div>
+          <div class="username"><a href="${r.twitter_url || '#'}" target="_blank">@${esc(r.username)}</a></div>
+          <div class="display-name">${esc(r.display_name || '')}</div>
+        </div>
+        <span class="badge-vc">🔥 ${r.vc_count} VCs</span>
+      </div>
+      ${r.description ? `<div class="bio">${esc(r.description.slice(0,120))}${r.description.length > 120 ? '…' : ''}</div>` : ''}
+      <div class="vcs-list">Folgt: <strong>${(r.vcs_followed || []).join(', ')}</strong></div>
+      <div class="via"><span>${formatDate(r.first_seen)}</span></div>
+    </div>`
+  ));
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+async function get(path) {
+  const r = await fetch(API + path);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+function setGrid(html) {
+  document.getElementById('grid').innerHTML = html.join('');
+}
+
+function setEmpty(msg) {
+  document.getElementById('grid').innerHTML = `<div class="empty">${msg}</div>`;
+}
+
+function setCount(n) {
+  document.getElementById('result-count').textContent = `${n} Ergebnis${n !== 1 ? 'se' : ''}`;
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function twitterLink(handle) {
+  if (!handle) return '';
+  return `<a href="https://x.com/${handle}" target="_blank">@${esc(handle)}</a>`;
+}
+
+function linkedinLink(url) {
+  if (!url) return '';
+  return `<a href="${url}" target="_blank" style="color:#58a6ff">${esc(url.replace('https://linkedin.com/in/',''))}</a>`;
+}
+
+function extractHandle(url) {
+  if (!url) return null;
+  const m = url.match(/x\.com\/([^/?]+)|twitter\.com\/([^/?]+)/);
+  return m ? (m[1] || m[2]) : null;
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+}
+
+// Show loading state initially
+document.getElementById('grid').innerHTML = '<div class="loading"><div class="spinner"></div>Lade Daten…</div>';
+boot();
+
+// Auto-refresh every 30s
+setInterval(() => { loadHealth(); loadLeads(); loadSignals(); loadMultiVC(); }, 30000);
+</script>
+</body>
+</html>

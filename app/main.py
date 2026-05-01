@@ -1,9 +1,12 @@
 import logging
 import logging.config
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, SessionLocal
 from app.routers import profiles, scoring, graph, ingest, sourcing
@@ -74,6 +77,15 @@ app.include_router(ingest.router)
 app.include_router(sourcing.router)
 app.include_router(vc_signals.router)
 
+# Serve the frontend dashboard
+_frontend = Path(__file__).parent.parent / "frontend"
+if _frontend.exists():
+    app.mount("/static", StaticFiles(directory=str(_frontend)), name="static")
+
+@app.get("/dashboard", include_in_schema=False)
+async def dashboard():
+    return FileResponse(str(_frontend / "index.html"))
+
 
 @app.get("/health", tags=["meta"])
 def health():
@@ -110,4 +122,4 @@ def health():
 @app.get("/", include_in_schema=False)
 async def root():
     from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/docs")
+    return RedirectResponse(url="/dashboard")
