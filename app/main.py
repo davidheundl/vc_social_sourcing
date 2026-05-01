@@ -31,7 +31,10 @@ logger = logging.getLogger("main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting VC Lead Intelligence API …")
-    # Schema is managed by Alembic — run `alembic upgrade head` before starting.
+    # Create all tables (idempotent — safe to run on every startup for SQLite dev)
+    from app.database import engine
+    import app.models  # noqa — registers all models with Base.metadata
+    Base.metadata.create_all(bind=engine)
 
     with SessionLocal() as db:
         from app.services.worker_db import seed_investors, seed_job_logs
