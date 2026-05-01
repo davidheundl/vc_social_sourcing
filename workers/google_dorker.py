@@ -10,7 +10,7 @@ import time
 import requests
 
 from config import config
-from database import get_db, upsert_founder, add_signal, log_job, log_error
+from app.services.worker_db import get_db, upsert_founder, add_signal, log_job, log_error
 
 logger = logging.getLogger("google_dorker")
 
@@ -75,8 +75,8 @@ def run(force: bool = False) -> int:
         return 0
     if not config.SERPAPI_KEY:
         logger.warning("SERPAPI_KEY not set — skipping Google Dorking")
-        with get_db() as conn:
-            log_job(conn, "google_dorker", 0)
+        with get_db() as db:
+            log_job(db, "google_dorker", 0)
         return 0
 
     new_count = 0
@@ -89,8 +89,8 @@ def run(force: bool = False) -> int:
                 results = _dork(query)
             except Exception as exc:
                 logger.error("Google Dork query failed: %s", exc)
-                with get_db() as conn:
-                    log_error(conn, "google_dorker", str(exc))
+                with get_db() as db:
+                    log_error(db, "google_dorker", str(exc))
                 continue
 
             for item in results:
@@ -105,44 +105,36 @@ def run(force: bool = False) -> int:
                     continue
                 seen_urls.add(linkedin_url)
 
-                # Best-effort name extraction from title (e.g. "Jane Doe - Founder at …")
                 name: str | None = None
                 if " - " in title:
                     name = title.split(" - ")[0].strip() or None
 
-                with get_db() as conn:
-                    fid = upsert_founder(
-                        conn,
-                        linkedin_url=linkedin_url,
-                        name=name,
-                    )
+                with get_db() as db:
+                    fid = upsert_founder(db, linkedin_url=linkedin_url, name=name)
                     add_signal(
-                        conn,
-                        founder_id=fid,
+                        db,
+                        profile_id=fid,
                         source="google",
                         signal_type="google_dork_result",
                         raw_text=snippet,
                         url=linkedin_url,
                     )
 
-                # Queue for Proxycurl enrichment
                 _pending_linkedin_urls.append(linkedin_url)
-
                 new_count += 1
                 logger.info("Google Dork: found %s → %s", name or "unknown", linkedin_url)
 
-            # Polite delay between queries
             time.sleep(2)
 
-        with get_db() as conn:
-            log_job(conn, "google_dorker", new_count)
+        with get_db() as db:
+            log_job(db, "google_dorker", new_count)
 
         logger.info("Google Dorker finished — %d new LinkedIn profiles queued", new_count)
 
     except Exception as exc:
         logger.error("Google Dorker fatal error: %s", exc)
-        with get_db() as conn:
-            log_error(conn, "google_dorker", str(exc))
-            log_job(conn, "google_dorker", 0, failed=True)
+        with get_db() as db:
+            log_error(db, "google_dorker", str(exc))
+            log_job(db, "google_dorker", 0, failed=True)
 
     return new_count

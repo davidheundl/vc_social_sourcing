@@ -11,6 +11,14 @@ from app.services.scoring_engine import compute_score
 router = APIRouter(tags=["scoring"])
 
 
+@router.post("/score/all", response_model=dict)
+def score_all_profiles(db: Session = Depends(get_db)):
+    profiles = db.query(Profile).all()
+    for profile in profiles:
+        compute_score(profile, db)
+    return {"scored": len(profiles)}
+
+
 @router.post("/score/{profile_id}", response_model=ScoreOut)
 def score_profile(profile_id: int, db: Session = Depends(get_db)):
     profile = db.query(Profile).filter(Profile.id == profile_id).first()
@@ -18,14 +26,6 @@ def score_profile(profile_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Profile not found")
     score = compute_score(profile, db)
     return score
-
-
-@router.post("/score/all", response_model=dict)
-def score_all_profiles(db: Session = Depends(get_db)):
-    profiles = db.query(Profile).all()
-    for profile in profiles:
-        compute_score(profile, db)
-    return {"scored": len(profiles)}
 
 
 @router.get("/ranked-leads", response_model=List[RankedLead])
@@ -46,6 +46,12 @@ def ranked_leads(
         q = q.filter(Profile.country.ilike(f"%{country}%"))
     if priority:
         q = q.filter(Score.priority == priority)
+    if sector:
+        from app.models.profile import Company
+        q = (
+            q.outerjoin(Company, Profile.company_id == Company.id)
+            .filter(Company.sector.ilike(f"%{sector}%"))
+        )
 
     results = q.order_by(Score.total.desc()).limit(limit).all()
 

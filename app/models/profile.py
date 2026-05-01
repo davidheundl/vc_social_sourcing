@@ -61,3 +61,4 @@ class Profile(Base):
     relationships_in = relationship(
         "Relationship", foreign_keys="Relationship.target_id", back_populates="target"
     )
+    signals = relationship("Signal", back_populates="profile", cascade="all, delete-orphan")

@@ -9,7 +9,7 @@ from datetime import datetime, timezone, timedelta
 import requests
 
 from config import config
-from database import get_db, upsert_founder, add_signal, log_job, log_error
+from app.services.worker_db import get_db, upsert_founder, add_signal, log_job, log_error
 
 logger = logging.getLogger("producthunt_crawler")
 
@@ -66,7 +66,7 @@ def _fetch_posts(after: str | None = None) -> dict:
     )
     if resp.status_code == 429:
         logger.warning("ProductHunt rate limit hit — stopping pagination for this run")
-        return None  # Signal to caller: stop gracefully, don't log as error
+        return None
     resp.raise_for_status()
     data = resp.json()
     if "errors" in data:
@@ -77,8 +77,8 @@ def _fetch_posts(after: str | None = None) -> dict:
 def run() -> int:
     if not config.PRODUCTHUNT_API_TOKEN:
         logger.warning("PRODUCTHUNT_API_TOKEN not set — skipping ProductHunt crawl")
-        with get_db() as conn:
-            log_job(conn, "producthunt_crawler", 0)
+        with get_db() as db:
+            log_job(db, "producthunt_crawler", 0)
         return 0
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
@@ -92,12 +92,11 @@ def run() -> int:
                 page = _fetch_posts(after=cursor)
             except Exception as exc:
                 logger.error("ProductHunt API error: %s", exc)
-                with get_db() as conn:
-                    log_error(conn, "producthunt_crawler", str(exc))
+                with get_db() as db:
+                    log_error(db, "producthunt_crawler", str(exc))
                 break
 
             if page is None:
-                # Rate limit hit — save what we have and stop cleanly
                 break
 
             edges = page.get("edges", [])
@@ -108,11 +107,8 @@ def run() -> int:
                 post = edge.get("node", {})
                 created_at_raw: str = post.get("createdAt", "")
 
-                # Parse and filter by date
                 try:
-                    post_dt = datetime.fromisoformat(
-                        created_at_raw.replace("Z", "+00:00")
-                    )
+                    post_dt = datetime.fromisoformat(created_at_raw.replace("Z", "+00:00"))
                     if post_dt < cutoff:
                         stop_paginating = True
                         break
@@ -130,51 +126,40 @@ def run() -> int:
                         continue
                     seen_maker_ids.add(maker_id)
 
-                    username = maker.get("username")
                     twitter = maker.get("twitterUsername")
                     name = maker.get("name")
                     headline = maker.get("headline")
 
-                    with get_db() as conn:
-                        # Try to cross-reference with existing founder
-                        fid = upsert_founder(
-                            conn,
-                            twitter_handle=twitter,
-                            name=name,
-                            bio=headline,
-                        )
-
+                    with get_db() as db:
+                        fid = upsert_founder(db, twitter_handle=twitter, name=name, bio=headline)
                         add_signal(
-                            conn,
-                            founder_id=fid,
+                            db,
+                            profile_id=fid,
                             source="producthunt",
                             signal_type="producthunt_launch",
-                            raw_text=(
-                                f"Launched: {product_name} — {tagline} "
-                                f"({votes} votes)"
-                            ),
+                            raw_text=f"Launched: {product_name} — {tagline} ({votes} votes)",
                             url=post_url,
                         )
 
                     new_count += 1
                     logger.info(
                         "ProductHunt: maker %s launched '%s' (%d votes)",
-                        name or username, product_name, votes
+                        name or maker.get("username"), product_name, votes,
                     )
 
             if stop_paginating or not page_info.get("hasNextPage"):
                 break
             cursor = page_info.get("endCursor")
 
-        with get_db() as conn:
-            log_job(conn, "producthunt_crawler", new_count)
+        with get_db() as db:
+            log_job(db, "producthunt_crawler", new_count)
 
         logger.info("ProductHunt crawler finished — %d new maker signals", new_count)
 
     except Exception as exc:
         logger.error("ProductHunt crawler fatal error: %s", exc)
-        with get_db() as conn:
-            log_error(conn, "producthunt_crawler", str(exc))
-            log_job(conn, "producthunt_crawler", 0, failed=True)
+        with get_db() as db:
+            log_error(db, "producthunt_crawler", str(exc))
+            log_job(db, "producthunt_crawler", 0, failed=True)
 
     return new_count
