@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 import tweepy
 
 from config import config
-from database import get_db, upsert_founder, add_signal, log_job, log_error, is_investor
+from app.services.worker_db import get_db, upsert_founder, add_signal, log_job, log_error, is_investor
 
 logger = logging.getLogger("twitter_crawler")
 
@@ -113,8 +113,8 @@ def run() -> int:
     """Entry point called by APScheduler."""
     if not config.RAPIDAPI_KEY:
         logger.warning("Twitter crawler skipped: no RAPIDAPI_KEY configured")
-        with get_db() as conn:
-            log_job(conn, "twitter_crawler", 0)
+        with get_db() as db:
+            log_job(db, "twitter_crawler", 0)
         return 0
 
     client = _build_client()
@@ -124,20 +124,7 @@ def run() -> int:
     new_count = 0
     seen_author_ids: set[int] = set()
 
-    queries = [
-        '"stealth startup"',
-        '"stealth mode founder"',
-        '"working on something stealth"',
-        '"building in public"',
-        '"day 1 of building"',
-        '"just quit my job to build"',
-        '"soft launch"',
-        '"just incorporated"',
-        '"just registered my company"',
-        '"looking for angel"',
-        '"pre-seed round"',
-        '"looking for cofounder"',
-    ]
+    queries = list(QUERY_SIGNAL_MAP.keys())
 
     try:
         for raw_query in queries:
@@ -147,8 +134,8 @@ def run() -> int:
             try:
                 tweets = _search_with_backoff(client, full_query, max_results=100)
             except Exception as exc:
-                with get_db() as conn:
-                    log_error(conn, "twitter_crawler", str(exc))
+                with get_db() as db:
+                    log_error(db, "twitter_crawler", str(exc))
                 logger.error("Twitter query failed (%s): %s", raw_query, exc)
                 continue
 
@@ -157,25 +144,21 @@ def run() -> int:
                 username = entry.get("username")
                 followers = entry.get("followers", 0)
 
-                # Minimum follower filter (100+)
                 if followers < 100:
                     continue
-
-                # Dedup within this run
                 if author_id in seen_author_ids:
                     continue
                 seen_author_ids.add(author_id)
 
-                with get_db() as conn:
-                    # Skip if this person is an investor
-                    if is_investor(conn, twitter_handle=username):
+                with get_db() as db:
+                    if is_investor(db, twitter_handle=username):
                         logger.info(
-                            "Twitter: @%s is a known investor — flagging separately", username
+                            "Twitter: @%s is a known investor — skipping", username
                         )
                         continue
 
                     fid = upsert_founder(
-                        conn,
+                        db,
                         twitter_handle=username,
                         name=entry.get("name"),
                         bio=entry.get("bio"),
@@ -184,8 +167,8 @@ def run() -> int:
 
                     signal_type = QUERY_SIGNAL_MAP.get(raw_query, "twitter_stealth_keyword")
                     add_signal(
-                        conn,
-                        founder_id=fid,
+                        db,
+                        profile_id=fid,
                         source="twitter",
                         signal_type=signal_type,
                         raw_text=entry.get("tweet_text"),
@@ -193,10 +176,12 @@ def run() -> int:
                     )
 
                     # Store follower count as meta-signal for scoring
-                    conn.execute(
-                        """INSERT INTO signals (founder_id, source, signal_type, raw_text, url, created_at)
-                           VALUES (?,?,?,?,?,datetime('now'))""",
-                        (fid, "twitter", "follower_count", str(followers), None),
+                    add_signal(
+                        db,
+                        profile_id=fid,
+                        source="twitter",
+                        signal_type="follower_count",
+                        raw_text=str(followers),
                     )
 
                     new_count += 1
@@ -205,15 +190,15 @@ def run() -> int:
                         username, followers, raw_query,
                     )
 
-        with get_db() as conn:
-            log_job(conn, "twitter_crawler", new_count)
+        with get_db() as db:
+            log_job(db, "twitter_crawler", new_count)
 
         logger.info("Twitter crawler finished — %d new signals", new_count)
 
     except Exception as exc:
         logger.error("Twitter crawler fatal error: %s", exc)
-        with get_db() as conn:
-            log_error(conn, "twitter_crawler", str(exc))
-            log_job(conn, "twitter_crawler", 0, failed=True)
+        with get_db() as db:
+            log_error(db, "twitter_crawler", str(exc))
+            log_job(db, "twitter_crawler", 0, failed=True)
 
     return new_count

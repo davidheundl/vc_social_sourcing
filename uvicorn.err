@@ -1,0 +1,66 @@
+INFO:     Started server process [34196]
+INFO:     Waiting for application startup.
+[2026-05-01T06:15:44Z] [main] [INFO] Starting VC Lead Intelligence API …
+[2026-05-01T06:15:44Z] [apscheduler.scheduler] [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[2026-05-01T06:15:44Z] [apscheduler.scheduler] [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[2026-05-01T06:15:44Z] [apscheduler.scheduler] [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[2026-05-01T06:15:44Z] [apscheduler.scheduler] [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[2026-05-01T06:15:44Z] [apscheduler.scheduler] [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[2026-05-01T06:15:44Z] [apscheduler.scheduler] [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[2026-05-01T06:15:44Z] [apscheduler.scheduler] [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[2026-05-01T06:15:44Z] [apscheduler.scheduler] [INFO] Added job "Twitter/X Stealth Crawler" to job store "default"
+[2026-05-01T06:15:44Z] [apscheduler.scheduler] [INFO] Added job "Google Dorker (LinkedIn)" to job store "default"
+[2026-05-01T06:15:44Z] [apscheduler.scheduler] [INFO] Added job "Proxycurl LinkedIn Enricher" to job store "default"
+[2026-05-01T06:15:44Z] [apscheduler.scheduler] [INFO] Added job "ProductHunt Maker Crawler" to job store "default"
+[2026-05-01T06:15:44Z] [apscheduler.scheduler] [INFO] Added job "HackerNews Talent Crawler" to job store "default"
+[2026-05-01T06:15:44Z] [apscheduler.scheduler] [INFO] Added job "Social Profile Lookup (LinkedIn + Twitter)" to job store "default"
+[2026-05-01T06:15:44Z] [apscheduler.scheduler] [INFO] Added job "Founder Score Refresh" to job store "default"
+[2026-05-01T06:15:44Z] [apscheduler.scheduler] [INFO] Scheduler started
+[2026-05-01T06:15:44Z] [scheduler] [INFO] APScheduler started with 7 jobs
+[2026-05-01T06:15:44Z] [main] [INFO] All systems running. API ready.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8001 (Press CTRL+C to quit)
+[2026-05-01T06:30:44Z] [apscheduler.executors.default] [INFO] Running job "Founder Score Refresh (trigger: interval[0:15:00], next run at: 2026-05-01 06:30:44 CEST)" (scheduled at 2026-05-01 06:30:44.705950+02:00)
+[2026-05-01T06:30:44Z] [scheduler] [INFO] [scoring_refresh] Starting
+[2026-05-01T06:30:44Z] [scheduler] [INFO] [scoring_refresh] Finished in 0.0s — 1 new records
+[2026-05-01T06:30:44Z] [apscheduler.executors.default] [INFO] Job "Founder Score Refresh (trigger: interval[0:15:00], next run at: 2026-05-01 06:45:44 CEST)" executed successfully
+[2026-05-01T06:45:44Z] [apscheduler.executors.default] [INFO] Running job "Twitter/X Stealth Crawler (trigger: interval[0:30:00], next run at: 2026-05-01 07:15:44 CEST)" (scheduled at 2026-05-01 06:45:44.693926+02:00)
+[2026-05-01T06:45:44Z] [scheduler] [INFO] [twitter_crawler] Starting
+[2026-05-01T06:45:44Z] [apscheduler.executors.default] [INFO] Running job "Founder Score Refresh (trigger: interval[0:15:00], next run at: 2026-05-01 07:00:44 CEST)" (scheduled at 2026-05-01 06:45:44.705950+02:00)
+[2026-05-01T06:45:44Z] [scheduler] [INFO] [scoring_refresh] Starting
+[2026-05-01T06:45:44Z] [scheduler] [INFO] [scoring_refresh] Finished in 0.0s — 1 new records
+[2026-05-01T06:45:44Z] [apscheduler.executors.default] [INFO] Job "Founder Score Refresh (trigger: interval[0:15:00], next run at: 2026-05-01 07:00:44 CEST)" executed successfully
+[2026-05-01T06:45:46Z] [twitter_crawler] [WARNING] Twitter crawler skipped: no RAPIDAPI_KEY configured
+[2026-05-01T06:45:46Z] [scheduler] [INFO] [twitter_crawler] Finished in 2.2s — 0 new records
+[2026-05-01T06:45:46Z] [apscheduler.executors.default] [INFO] Job "Twitter/X Stealth Crawler (trigger: interval[0:30:00], next run at: 2026-05-01 07:15:44 CEST)" executed successfully
+[2026-05-01T07:22:58Z] [apscheduler.executors.default] [WARNING] Run time of job "Founder Score Refresh (trigger: interval[0:15:00], next run at: 2026-05-01 07:30:44 CEST)" was missed by 0:07:13.321757
+[2026-05-01T07:22:58Z] [apscheduler.executors.default] [WARNING] Run time of job "Twitter/X Stealth Crawler (trigger: interval[0:30:00], next run at: 2026-05-01 07:45:44 CEST)" was missed by 0:07:13.334781
+[2026-05-01T07:30:44Z] [apscheduler.executors.default] [INFO] Running job "Founder Score Refresh (trigger: interval[0:15:00], next run at: 2026-05-01 07:45:44 CEST)" (scheduled at 2026-05-01 07:30:44.705950+02:00)
+[2026-05-01T07:30:44Z] [scheduler] [INFO] [scoring_refresh] Starting
+[2026-05-01T07:30:44Z] [scheduler] [INFO] [scoring_refresh] Finished in 0.0s — 1 new records
+[2026-05-01T07:30:44Z] [apscheduler.executors.default] [INFO] Job "Founder Score Refresh (trigger: interval[0:15:00], next run at: 2026-05-01 07:45:44 CEST)" executed successfully
+[2026-05-01T07:47:25Z] [apscheduler.executors.default] [WARNING] Run time of job "Twitter/X Stealth Crawler (trigger: interval[0:30:00], next run at: 2026-05-01 08:15:44 CEST)" was missed by 0:01:40.693500
+[2026-05-01T07:47:25Z] [apscheduler.executors.default] [WARNING] Run time of job "Founder Score Refresh (trigger: interval[0:15:00], next run at: 2026-05-01 08:00:44 CEST)" was missed by 0:01:40.683439
+[2026-05-01T08:00:00Z] [apscheduler.executors.default] [INFO] Running job "ProductHunt Maker Crawler (trigger: cron[hour='8', minute='0'], next run at: 2026-05-02 08:00:00 CEST)" (scheduled at 2026-05-01 08:00:00+02:00)
+[2026-05-01T08:00:00Z] [scheduler] [INFO] [producthunt_crawler] Starting
+[2026-05-01T08:00:00Z] [producthunt_crawler] [WARNING] PRODUCTHUNT_API_TOKEN not set — skipping ProductHunt crawl
+[2026-05-01T08:00:00Z] [scheduler] [INFO] [producthunt_crawler] Finished in 0.1s — 0 new records
+[2026-05-01T08:00:00Z] [apscheduler.executors.default] [INFO] Job "ProductHunt Maker Crawler (trigger: cron[hour='8', minute='0'], next run at: 2026-05-02 08:00:00 CEST)" executed successfully
+[2026-05-01T08:00:44Z] [apscheduler.executors.default] [INFO] Running job "Founder Score Refresh (trigger: interval[0:15:00], next run at: 2026-05-01 08:15:44 CEST)" (scheduled at 2026-05-01 08:00:44.705950+02:00)
+[2026-05-01T08:00:44Z] [scheduler] [INFO] [scoring_refresh] Starting
+[2026-05-01T08:00:44Z] [scheduler] [INFO] [scoring_refresh] Finished in 0.0s — 1 new records
+[2026-05-01T08:00:44Z] [apscheduler.executors.default] [INFO] Job "Founder Score Refresh (trigger: interval[0:15:00], next run at: 2026-05-01 08:15:44 CEST)" executed successfully
+[2026-05-01T08:15:44Z] [apscheduler.executors.default] [INFO] Running job "Twitter/X Stealth Crawler (trigger: interval[0:30:00], next run at: 2026-05-01 08:45:44 CEST)" (scheduled at 2026-05-01 08:15:44.693926+02:00)
+[2026-05-01T08:15:44Z] [apscheduler.executors.default] [INFO] Running job "Proxycurl LinkedIn Enricher (trigger: interval[2:00:00], next run at: 2026-05-01 10:15:44 CEST)" (scheduled at 2026-05-01 08:15:44.699940+02:00)
+[2026-05-01T08:15:44Z] [apscheduler.executors.default] [INFO] Running job "Founder Score Refresh (trigger: interval[0:15:00], next run at: 2026-05-01 08:15:44 CEST)" (scheduled at 2026-05-01 08:15:44.705950+02:00)
+[2026-05-01T08:15:44Z] [scheduler] [INFO] [twitter_crawler] Starting
+[2026-05-01T08:15:44Z] [twitter_crawler] [WARNING] Twitter crawler skipped: no RAPIDAPI_KEY configured
+[2026-05-01T08:15:44Z] [scheduler] [INFO] [scoring_refresh] Starting
+[2026-05-01T08:15:44Z] [scheduler] [INFO] [scoring_refresh] Finished in 0.0s — 1 new records
+[2026-05-01T08:15:44Z] [apscheduler.executors.default] [INFO] Job "Founder Score Refresh (trigger: interval[0:15:00], next run at: 2026-05-01 08:30:44 CEST)" executed successfully
+[2026-05-01T08:15:44Z] [scheduler] [INFO] [proxycurl_enricher] Starting
+[2026-05-01T08:15:44Z] [scheduler] [INFO] [twitter_crawler] Finished in 0.1s — 0 new records
+[2026-05-01T08:15:44Z] [apscheduler.executors.default] [INFO] Job "Twitter/X Stealth Crawler (trigger: interval[0:30:00], next run at: 2026-05-01 08:45:44 CEST)" executed successfully
+[2026-05-01T08:15:44Z] [proxycurl_enricher] [WARNING] PROXYCURL_API_KEY not set — skipping Proxycurl enrichment
+[2026-05-01T08:15:44Z] [scheduler] [INFO] [proxycurl_enricher] Finished in 0.0s — 0 new records
+[2026-05-01T08:15:44Z] [apscheduler.executors.default] [INFO] Job "Proxycurl LinkedIn Enricher (trigger: interval[2:00:00], next run at: 2026-05-01 10:15:44 CEST)" executed successfully

@@ -13,18 +13,15 @@ Signal sources
 import logging
 import re
 import time
-from urllib.parse import quote
 
 import requests
 
-from database import get_db, upsert_founder, add_signal, log_job, log_error
+from app.services.worker_db import get_db, upsert_founder, add_signal, log_job, log_error
 
 logger = logging.getLogger("hackernews_crawler")
 
 HN_SEARCH_URL = "https://hn.algolia.com/api/v1/search"
-HN_ITEM_URL = "https://hacker-news.firebaseio.com/v0/item/{}.json"
 
-# Keyword → signal_type mapping for story/comment body searches
 QUERY_SIGNAL_MAP: dict[str, str] = {
     "stealth startup founder": "hn_stealth_keyword",
     "building in stealth": "hn_stealth_keyword",
@@ -36,19 +33,13 @@ QUERY_SIGNAL_MAP: dict[str, str] = {
     "soft launch": "hn_launch",
 }
 
-# Regex to pull a GitHub username from HN "who wants to be hired" entries
 _GITHUB_RE = re.compile(r"github\.com/([A-Za-z0-9_-]+)", re.IGNORECASE)
 
 _SESSION = requests.Session()
 _SESSION.headers["User-Agent"] = "vc-social-sourcing/1.0"
 
 
-# ---------------------------------------------------------------------------
-# Low-level helpers
-# ---------------------------------------------------------------------------
-
 def _get_json(url: str, params: dict | None = None, retries: int = 3) -> dict | list | None:
-    """GET with simple retry on transient failures."""
     for attempt in range(retries):
         try:
             resp = _SESSION.get(url, params=params, timeout=15)
@@ -81,15 +72,7 @@ def _algolia_search(query: str, tags: str = "story", page: int = 0,
     return data["hits"]
 
 
-# ---------------------------------------------------------------------------
-# Sub-scrapers
-# ---------------------------------------------------------------------------
-
 def _process_show_hn(seen_usernames: set[str]) -> int:
-    """
-    Harvest 'Show HN' posts — proxy for founders launching early products.
-    Returns count of new records saved.
-    """
     count = 0
     hits = _algolia_search("Show HN", tags="story", hits_per_page=100)
 
@@ -99,26 +82,17 @@ def _process_show_hn(seen_usernames: set[str]) -> int:
             continue
 
         title: str = hit.get("title", "")
-        url: str = hit.get("url") or f"https://news.ycombinator.com/item?id={hit.get('objectID')}"
         hn_url = f"https://news.ycombinator.com/item?id={hit.get('objectID')}"
-        story_text: str = hit.get("story_text") or ""
 
-        # Only keep posts that look like an early-stage product (not job posts etc.)
         if not title.lower().startswith("show hn"):
             continue
 
         seen_usernames.add(username)
 
-        with get_db() as conn:
-            fid = upsert_founder(conn, name=username)
-            add_signal(
-                conn,
-                founder_id=fid,
-                source="hackernews",
-                signal_type="hn_show_hn",
-                raw_text=title,
-                url=hn_url,
-            )
+        with get_db() as db:
+            fid = upsert_founder(db, name=username)
+            add_signal(db, profile_id=fid, source="hackernews", signal_type="hn_show_hn",
+                       raw_text=title, url=hn_url)
             count += 1
             logger.info("HN Show HN: saved founder '%s' — %s", username, title[:80])
 
@@ -126,13 +100,7 @@ def _process_show_hn(seen_usernames: set[str]) -> int:
 
 
 def _process_who_wants_to_be_hired(seen_usernames: set[str]) -> int:
-    """
-    Search for 'Ask HN: Who wants to be hired' threads and parse top-level
-    comments as individual talent signals.
-    Returns count of new records saved.
-    """
     count = 0
-    # Find the monthly thread (tags=story to get the Ask HN post itself)
     hits = _algolia_search("Ask HN: Who wants to be hired", tags="story", hits_per_page=10)
 
     for thread in hits:
@@ -140,7 +108,6 @@ def _process_who_wants_to_be_hired(seen_usernames: set[str]) -> int:
         if not thread_id:
             continue
 
-        # Fetch comments for this thread via Algolia
         comments = _algolia_search("", tags=f"comment,story_{thread_id}", hits_per_page=100)
 
         for comment in comments:
@@ -149,46 +116,28 @@ def _process_who_wants_to_be_hired(seen_usernames: set[str]) -> int:
                 continue
 
             text: str = comment.get("comment_text") or ""
-            if len(text) < 50:  # skip very short / empty replies
+            if len(text) < 50:
                 continue
 
             seen_usernames.add(username)
 
-            # Try to extract a GitHub URL from the comment body
             github_match = _GITHUB_RE.search(text)
             github_url = f"https://github.com/{github_match.group(1)}" if github_match else None
-
             hn_url = f"https://news.ycombinator.com/item?id={comment.get('objectID')}"
-            thread_url = f"https://news.ycombinator.com/item?id={thread_id}"
 
-            with get_db() as conn:
-                fid = upsert_founder(
-                    conn,
-                    name=username,
-                    github_url=github_url,
-                )
-                add_signal(
-                    conn,
-                    founder_id=fid,
-                    source="hackernews",
-                    signal_type="hn_who_wants_hired",
-                    raw_text=text[:500],
-                    url=hn_url,
-                )
+            with get_db() as db:
+                fid = upsert_founder(db, name=username, github_url=github_url)
+                add_signal(db, profile_id=fid, source="hackernews",
+                           signal_type="hn_who_wants_hired", raw_text=text[:500], url=hn_url)
                 count += 1
                 logger.info("HN hired thread: saved talent '%s'", username)
 
-        # Only process the most recent thread to avoid old data
-        break
+        break  # only process the most recent thread
 
     return count
 
 
 def _process_keyword_searches(seen_usernames: set[str]) -> int:
-    """
-    Run keyword queries against HN stories/comments and store matching authors.
-    Returns count of new records saved.
-    """
     count = 0
 
     for query, signal_type in QUERY_SIGNAL_MAP.items():
@@ -205,30 +154,19 @@ def _process_keyword_searches(seen_usernames: set[str]) -> int:
             title = hit.get("title") or hit.get("comment_text") or ""
             hn_url = f"https://news.ycombinator.com/item?id={hit.get('objectID')}"
 
-            with get_db() as conn:
-                fid = upsert_founder(conn, name=username)
-                add_signal(
-                    conn,
-                    founder_id=fid,
-                    source="hackernews",
-                    signal_type=signal_type,
-                    raw_text=title[:500],
-                    url=hn_url,
-                )
+            with get_db() as db:
+                fid = upsert_founder(db, name=username)
+                add_signal(db, profile_id=fid, source="hackernews", signal_type=signal_type,
+                           raw_text=title[:500], url=hn_url)
                 count += 1
                 logger.info("HN keyword '%s': saved founder '%s'", query, username)
 
-        time.sleep(1)  # be polite between queries
+        time.sleep(1)
 
     return count
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
 def run() -> int:
-    """Called by APScheduler."""
     logger.info("HackerNews crawler starting")
     new_count = 0
     seen_usernames: set[str] = set()
@@ -238,15 +176,15 @@ def run() -> int:
         new_count += _process_who_wants_to_be_hired(seen_usernames)
         new_count += _process_keyword_searches(seen_usernames)
 
-        with get_db() as conn:
-            log_job(conn, "hackernews_crawler", new_count)
+        with get_db() as db:
+            log_job(db, "hackernews_crawler", new_count)
 
         logger.info("HackerNews crawler finished — %d new signals", new_count)
 
     except Exception as exc:
         logger.error("HackerNews crawler fatal error: %s", exc)
-        with get_db() as conn:
-            log_error(conn, "hackernews_crawler", str(exc))
-            log_job(conn, "hackernews_crawler", 0, failed=True)
+        with get_db() as db:
+            log_error(db, "hackernews_crawler", str(exc))
+            log_job(db, "hackernews_crawler", 0, failed=True)
 
     return new_count

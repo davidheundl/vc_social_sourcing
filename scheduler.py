@@ -14,7 +14,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from database import get_db, log_job, log_error
+from app.services.worker_db import get_db, log_job, log_error
+from app.models.job_log import JobLog
 
 logger = logging.getLogger("scheduler")
 
@@ -25,37 +26,26 @@ PAUSE_DURATION_HOURS = 1
 
 
 def _is_paused(job_name: str) -> bool:
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT paused_until FROM jobs_log WHERE job_name = ?", (job_name,)
-        ).fetchone()
-        if row and row["paused_until"]:
-            paused_until = datetime.fromisoformat(row["paused_until"])
+    with get_db() as db:
+        job = db.query(JobLog).filter(JobLog.job_name == job_name).first()
+        if job and job.paused_until:
+            paused_until = job.paused_until
             if paused_until.tzinfo is None:
                 paused_until = paused_until.replace(tzinfo=timezone.utc)
             if datetime.now(timezone.utc) < paused_until:
                 return True
             # Un-pause: reset consecutive_failures
-            conn.execute(
-                "UPDATE jobs_log SET paused_until = NULL, consecutive_failures = 0 WHERE job_name = ?",
-                (job_name,),
-            )
+            job.paused_until = None
+            job.consecutive_failures = 0
     return False
 
 
 def _check_and_maybe_pause(job_name: str) -> None:
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT consecutive_failures FROM jobs_log WHERE job_name = ?", (job_name,)
-        ).fetchone()
-        if row and row["consecutive_failures"] >= MAX_CONSECUTIVE_FAILURES:
-            paused_until = (
-                datetime.now(timezone.utc) + timedelta(hours=PAUSE_DURATION_HOURS)
-            ).isoformat()
-            conn.execute(
-                "UPDATE jobs_log SET paused_until = ? WHERE job_name = ?",
-                (paused_until, job_name),
-            )
+    with get_db() as db:
+        job = db.query(JobLog).filter(JobLog.job_name == job_name).first()
+        if job and (job.consecutive_failures or 0) >= MAX_CONSECUTIVE_FAILURES:
+            paused_until = datetime.now(timezone.utc) + timedelta(hours=PAUSE_DURATION_HOURS)
+            job.paused_until = paused_until
             logger.warning(
                 "Worker '%s' failed %d times in a row — pausing until %s",
                 job_name, MAX_CONSECUTIVE_FAILURES, paused_until,
@@ -79,9 +69,9 @@ def _guarded(job_name: str, func):
             )
         except Exception as exc:
             logger.error("[%s] Failed: %s", job_name, exc)
-            with get_db() as conn:
-                log_error(conn, job_name, str(exc))
-                log_job(conn, job_name, 0, failed=True)
+            with get_db() as db:
+                log_error(db, job_name, str(exc))
+                log_job(db, job_name, 0, failed=True)
             _check_and_maybe_pause(job_name)
 
     wrapper.__name__ = job_name
@@ -89,8 +79,20 @@ def _guarded(job_name: str, func):
 
 
 def _scoring_refresh_job() -> int:
-    from scoring import refresh_all_scores
-    return refresh_all_scores()
+    from app.database import SessionLocal
+    from app.models.profile import Profile
+    from app.services.scoring_engine import compute_score
+
+    count = 0
+    with SessionLocal() as db:
+        profiles = db.query(Profile).all()
+        for profile in profiles:
+            try:
+                compute_score(profile, db)
+                count += 1
+            except Exception as exc:
+                logger.error("scoring_refresh: failed for profile %d: %s", profile.id, exc)
+    return count
 
 
 def _twitter_job() -> int:
@@ -121,6 +123,16 @@ def _hackernews_job() -> int:
 def _social_lookup_job() -> int:
     from workers.social_lookup import run
     return run()
+
+
+def _vc_following_job() -> int:
+    from workers.vc_watcher import run_following
+    return run_following()
+
+
+def _vc_follower_job() -> int:
+    from workers.vc_watcher import run_followers
+    return run_followers()
 
 
 def start_scheduler() -> BackgroundScheduler:
@@ -173,7 +185,6 @@ def start_scheduler() -> BackgroundScheduler:
         max_instances=1,
     )
 
-    # Runs 2h after HN/PH crawlers so fresh discoveries are ready to enrich
     scheduler.add_job(
         _guarded("social_lookup", _social_lookup_job),
         trigger=CronTrigger(hour="2,6,10,14,18,22"),
@@ -188,6 +199,24 @@ def start_scheduler() -> BackgroundScheduler:
         trigger=IntervalTrigger(minutes=15),
         id="scoring_refresh",
         name="Founder Score Refresh",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    scheduler.add_job(
+        _guarded("vc_following_scan", _vc_following_job),
+        trigger=IntervalTrigger(minutes=5),
+        id="vc_following_scan",
+        name="VC Following Scanner",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    scheduler.add_job(
+        _guarded("vc_follower_scan", _vc_follower_job),
+        trigger=IntervalTrigger(minutes=5),
+        id="vc_follower_scan",
+        name="VC Follower Overlap Scanner",
         replace_existing=True,
         max_instances=1,
     )
