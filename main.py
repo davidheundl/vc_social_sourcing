@@ -361,6 +361,105 @@ async def health():
 
 
 # ---------------------------------------------------------------------------
+# POST /webhook/clay
+# ---------------------------------------------------------------------------
+
+
+@app.post("/webhook/clay", tags=["Actions"])
+async def clay_webhook(payload: dict | list):
+    """
+    Receive enriched profile data from Clay's HTTP API action.
+
+    Clay setup:
+      1. In your Clay table, add an "HTTP API" enrichment column.
+      2. Set method = POST, URL = http://<your-server>/webhook/clay
+      3. Map fields: linkedin_url, full_name, headline, location,
+         twitter_username, github_url (use whatever Clay column names you have).
+      4. Clay calls this endpoint for each row and maps the JSON response
+         back to new columns (score, signals, etc.).
+
+    Accepts both a single profile object or a list of profiles.
+    Returns the scored founder record(s).
+    """
+    from database import upsert_founder, add_signal
+    from scoring import score_founder
+
+    profiles: list[dict] = payload if isinstance(payload, list) else [payload]
+    results = []
+
+    for profile in profiles:
+        # Normalise field names — Clay enrichments use various provider naming conventions
+        linkedin_url = (
+            profile.get("linkedin_url")
+            or profile.get("linkedin_profile_url")
+            or profile.get("linkedinUrl")
+            or profile.get("url")
+        )
+        name = profile.get("full_name") or profile.get("name") or profile.get("fullName")
+        bio = (
+            profile.get("headline")
+            or profile.get("bio")
+            or profile.get("title")
+            or profile.get("job_title")
+        )
+        location = profile.get("location") or profile.get("city")
+        twitter = (
+            profile.get("twitter_username")
+            or profile.get("twitter_handle")
+            or profile.get("twitterUsername")
+        )
+        github = profile.get("github_url") or profile.get("githubUrl")
+        email = profile.get("email") or profile.get("work_email")
+
+        if not linkedin_url:
+            logger.warning("Clay webhook: skipping profile with no linkedin_url — %s", profile)
+            continue
+
+        with get_db() as conn:
+            fid = upsert_founder(
+                conn,
+                linkedin_url=linkedin_url,
+                name=name,
+                bio=bio,
+                location=location,
+                twitter_handle=twitter,
+                github_url=github,
+            )
+            add_signal(
+                conn,
+                founder_id=fid,
+                source="clay",
+                signal_type="linkedin_enriched",
+                raw_text=bio,
+                url=linkedin_url,
+            )
+            if email:
+                conn.execute(
+                    """INSERT INTO signals (founder_id, source, signal_type, raw_text, url, created_at)
+                       VALUES (?,?,?,?,?,datetime('now'))""",
+                    (fid, "clay", "email_found", email, None),
+                )
+
+        score_founder(fid)
+
+        with get_db() as conn:
+            row = conn.execute("SELECT * FROM founders WHERE id = ?", (fid,)).fetchone()
+            signals = conn.execute(
+                "SELECT * FROM signals WHERE founder_id = ? ORDER BY created_at DESC",
+                (fid,),
+            ).fetchall()
+
+        detail = FounderDetail.from_row(row)
+        detail.signal_records = [SignalOut.from_row(s) for s in signals]
+        results.append(detail)
+
+    if not results:
+        raise HTTPException(status_code=400, detail="No valid profiles — linkedin_url is required")
+
+    return results[0] if len(results) == 1 else results
+
+
+# ---------------------------------------------------------------------------
 # Root redirect to docs
 # ---------------------------------------------------------------------------
 

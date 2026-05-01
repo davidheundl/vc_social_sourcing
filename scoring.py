@@ -34,6 +34,7 @@ SIGNAL_WEIGHTS: dict[str, int] = {
     "producthunt_launch": 25,
     "github_new_org": 15,
     "google_dork_result": 20,
+    "linkedin_enriched": 25,  # Clay-enriched LinkedIn profile
 }
 
 
